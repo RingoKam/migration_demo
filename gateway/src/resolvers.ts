@@ -1,104 +1,34 @@
 import axios from 'axios';
 import { AuthContext } from './auth.js';
 import { featureToggle } from './featureToggle.js';
-
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL || 'http://user-service:3001';
-const USER_SERVICE_KOTLIN_URL = process.env.USER_SERVICE_KOTLIN_URL || 'http://user-service-kotlin:3002';
-
-const LICENSE_SERVICE_URL = process.env.LICENSE_SERVICE_URL || 'http://license-service:8000';
-const LICENSE_SERVICE_KOTLIN_URL = process.env.LICENSE_SERVICE_KOTLIN_URL || 'http://license-service-kotlin:8001';
-
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  role: string;
-}
-
-interface LicenseStatus {
-  isValidSeat: boolean;
-  seatType?: string;
-  expirationDate?: string;
-  id?: string;
-}
+import { kotlinUserService } from './services/kotlinUserService.js';
+import { legacyUserService } from './services/legacyUserService.js';
+import { kotlinLicenseService } from './services/kotlinLicenseService.js';
+import { legacyLicenseService } from './services/legacyLicenseService.js';
+import { User, LicenseStatus } from './services/types.js';
 
 interface Context {
   auth: AuthContext;
 }
 
-// Helper to fetch user from GraphQL or REST
-async function fetchUser(userId: string): Promise<User> {
-  if (featureToggle.getUserService()) {
-    // Use GraphQL service (Kotlin)
-    const query = `
-      query GetUser($id: ID!) {
-        getUser(id: $id) {
-          id
-          email
-          username
-          role
-        }
-      }
-    `;
-    
-    const response = await axios.post(`${USER_SERVICE_KOTLIN_URL}/graphql`, {
-      query,
-      variables: { id: userId }
-    });
-    
-    if (response.data.errors) {
-      const errorMessage = response.data.errors[0]?.message || 'Failed to fetch user';
-      throw new Error(errorMessage);
-    }
-    
-    const user = response.data.data?.getUser;
-    if (!user) {
-      throw new Error(`User with id ${userId} not found`);
-    }
-    
-    return user;
-  } else {
-    // Use REST service
-    const response = await axios.get<User>(`${USER_SERVICE_URL}/users/${userId}`);
-    if (!response.data) {
-      throw new Error('User not found');
-    }
-    return response.data;
-  }
+// Helper to get the appropriate user service based on feature toggle
+function getUserService() {
+  return featureToggle.getUserService() ? kotlinUserService : legacyUserService;
 }
 
-// Helper to fetch license status from GraphQL or REST
+// Helper to get the appropriate license service based on feature toggle
+function getLicenseService() {
+  return featureToggle.getLicenseService() ? kotlinLicenseService : legacyLicenseService;
+}
+
+// Helper to fetch user from the appropriate service
+async function fetchUser(userId: string): Promise<User> {
+  return getUserService().getUser(userId);
+}
+
+// Helper to fetch license status from the appropriate service
 async function fetchLicenseStatus(userId: string): Promise<LicenseStatus> {
-  if (featureToggle.getLicenseService()) {
-    // Use GraphQL service (Kotlin)
-    const query = `
-      query GetLicenseStatus($userId: ID!) {
-        getLicenseStatus(userId: $userId) {
-          id
-          isValidSeat
-          seatType
-          expirationDate
-        }
-      }
-    `;
-    
-    const response = await axios.post(`${LICENSE_SERVICE_KOTLIN_URL}/graphql`, {
-      query,
-      variables: { userId }
-    });
-    
-    if (response.data.errors) {
-      throw new Error(response.data.errors[0].message || 'Failed to fetch license status');
-    }
-    
-    return response.data.data.getLicenseStatus;
-  } else {
-    // Use REST service
-    const response = await axios.get<LicenseStatus>(
-      `${LICENSE_SERVICE_URL}/users/${userId}/authorizations`
-    );
-    return response.data;
-  }
+  return getLicenseService().getLicenseStatus(userId);
 }
 
 export const resolvers = {
@@ -150,65 +80,7 @@ export const resolvers = {
   Mutation: {
     login: async (_: any, { credentials }: { credentials: { email: string; password: string } }) => {
       try {
-        if (featureToggle.getUserService()) {
-          // Use GraphQL service (Kotlin)
-          const mutation = `
-            mutation Login($credentials: LoginInput!) {
-              login(credentials: $credentials) {
-                token
-                user {
-                  id
-                  email
-                  username
-                  role
-                }
-              }
-            }
-          `;
-          
-          const variables = {
-            credentials: {
-              email: credentials.email,
-              password: credentials.password
-            }
-          };
-          
-          const response = await axios.post(`${USER_SERVICE_KOTLIN_URL}/graphql`, {
-            query: mutation,
-            variables
-          });
-          
-          if (response.data.errors) {
-            throw new Error(response.data.errors[0].message || 'Login failed');
-          }
-          
-          const { user, token } = response.data.data.login;
-          
-          return {
-            token,
-            user: {
-              ...user,
-              role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
-            }
-          };
-        } else {
-          // Use REST service
-          const response = await axios.post<{ user: User; token: string }>(
-            `${USER_SERVICE_URL}/auth/login`,
-            credentials
-          );
-          
-          const { user, token } = response.data;
-
-          return {
-            token,
-            user: {
-              ...user,
-              role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
-              // licenseStatus will be resolved by the field resolver if requested
-            }
-          };
-        }
+        return await getUserService().login(credentials);
       } catch (error: any) {
         if (axios.isAxiosError(error) && error.response) {
           const errorData = error.response.data;
@@ -223,143 +95,28 @@ export const resolvers = {
     
     register: async (_: any, { input }: { input: { email: string; password: string; username: string; role?: string; license?: { isValidSeat?: boolean; seatType?: string; expirationDate?: string } } }) => {
       try {
-        if (featureToggle.getUserService()) {
-          // Use GraphQL service (Kotlin) with Kafka - event-driven
-          const mutation = `
-            mutation Register($input: RegisterInput!) {
-              register(input: $input) {
-                success
-                message
-                userId
-              }
-            }
-          `;
-          
-          const variables = {
-            input: {
-              email: input.email,
-              password: input.password,
-              username: input.username,
-              role: input.role || 'STUDENT'
-            }
-          };
-          
-          const response = await axios.post(`${USER_SERVICE_KOTLIN_URL}/graphql`, {
-            query: mutation,
-            variables
-          });
-          
-          if (response.data.errors) {
-            throw new Error(response.data.errors[0].message || 'Registration failed');
+        const result = await getUserService().register({
+          email: input.email,
+          password: input.password,
+          username: input.username,
+          role: input.role
+        });
+        
+        // Create license if provided (handle separately from user registration)
+        if (input.license && result.userId) {
+          try {
+            await getLicenseService().updateLicenseStatus(result.userId, {
+              isValidSeat: input.license.isValidSeat,
+              seatType: input.license.seatType,
+              expirationDate: input.license.expirationDate
+            });
+          } catch (licenseError) {
+            // TODO: handle license creation, at least log the error
+            console.error('Failed to create license during registration:', licenseError);
           }
-          
-          const result = response.data.data.register;
-          
-          // Create license if provided (handle separately from user registration)
-          if (input.license && result.userId) {
-            try {
-              if (featureToggle.getLicenseService()) {
-                // Use GraphQL license service
-                const licenseMutation = `
-                  mutation UpdateLicenseStatus($userId: ID!, $input: UpdateLicenseInput!) {
-                    updateLicenseStatus(userId: $userId, input: $input) {
-                      success
-                      message
-                    }
-                  }
-                `;
-                
-                const licenseVariables = {
-                  userId: result.userId,
-                  input: {
-                    isValidSeat: input.license.isValidSeat,
-                    seatType: input.license.seatType,
-                    expirationDate: input.license.expirationDate
-                  }
-                };
-                
-                await axios.post(`${LICENSE_SERVICE_KOTLIN_URL}/graphql`, {
-                  query: licenseMutation,
-                  variables: licenseVariables
-                });
-              } else {
-                // Use REST license service
-                await axios.put(
-                  `${LICENSE_SERVICE_URL}/users/${result.userId}/authorizations`,
-                  {
-                    isValidSeat: input.license.isValidSeat,
-                    seatType: input.license.seatType,
-                    expirationDate: input.license.expirationDate
-                  }
-                );
-              }
-            } catch (licenseError) {
-              // TODO: handle license creation, at least log the error
-              console.error('Failed to create license during registration:', licenseError);
-            }
-          }
-          
-          return result;
-        } else {
-          // Use REST service - returns AuthPayload for backward compatibility
-          const response = await axios.post<{ user: User; token: string }>(
-            `${USER_SERVICE_URL}/auth/register`,
-            input
-          );
-          
-          const { user } = response.data;
-
-          // Create license if provided (REST service returns user immediately)
-          if (input.license && user.id) {
-            try {
-              if (featureToggle.getLicenseService()) {
-                // Use GraphQL license service
-                const licenseMutation = `
-                  mutation UpdateLicenseStatus($userId: ID!, $input: UpdateLicenseInput!) {
-                    updateLicenseStatus(userId: $userId, input: $input) {
-                      success
-                      message
-                    }
-                  }
-                `;
-                
-                const licenseVariables = {
-                  userId: user.id,
-                  input: {
-                    isValidSeat: input.license.isValidSeat,
-                    seatType: input.license.seatType,
-                    expirationDate: input.license.expirationDate
-                  }
-                };
-                
-                await axios.post(`${LICENSE_SERVICE_KOTLIN_URL}/graphql`, {
-                  query: licenseMutation,
-                  variables: licenseVariables
-                });
-              } else {
-                // Use REST license service
-                await axios.put(
-                  `${LICENSE_SERVICE_URL}/users/${user.id}/authorizations`,
-                  {
-                    isValidSeat: input.license.isValidSeat,
-                    seatType: input.license.seatType,
-                    expirationDate: input.license.expirationDate
-                  }
-                );
-              }
-            } catch (licenseError) {
-              // TODO: handle license creation, at least log the error
-              console.error('Failed to create license during registration:', licenseError);
-            }
-          }
-
-          // Convert REST response to MutationResult for consistency
-          return {
-            success: true,
-            message: 'User registered successfully. Please login to get your token.',
-            userId: user.id
-          };
         }
+        
+        return result;
       } catch (error: any) {
         if (axios.isAxiosError(error) && error.response) {
           const errorData = error.response.data;
