@@ -21,7 +21,7 @@ class UserEventConsumer(
     fun handleUserEvent(eventJson: String) {
         try {
             val event = objectMapper.readValue(eventJson, UserEvent::class.java)
-            logger.info("Received user event: ${event.eventType} for user ${event.userId}")
+            logger.info("Received user event: ${event.eventType} for user ${event.userId} from source: ${event.source}")
 
             when (event.eventType) {
                 UserEventType.USER_CREATED -> {

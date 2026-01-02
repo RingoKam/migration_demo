@@ -19,7 +19,7 @@ class LicenseEventConsumer(
     fun handleLicenseEvent(eventJson: String) {
         try {
             val event = objectMapper.readValue(eventJson, LicenseEvent::class.java)
-            logger.info("Received license event: ${event.eventType} for user ${event.userId}")
+            logger.info("Received license event: ${event.eventType} for user ${event.userId} from source: ${event.source}")
 
             when (event.eventType) {
                 LicenseEventType.LICENSE_UPDATED -> {

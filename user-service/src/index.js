@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { readUsers, writeUsers } = require('./data.js');
+const kafkaProducer = require('./kafka-producer.js');
+const kafkaConsumer = require('./kafka-consumer.js');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -114,6 +116,24 @@ app.post('/auth/register', async (req, res) => {
     users[newId] = newUser;
     await writeUsers(users);
 
+    // Publish USER_CREATED event to Kafka
+    try {
+      await kafkaProducer.publishEvent(
+        'USER_CREATED',
+        newId,
+        {
+          id: newId,
+          email: newUser.email,
+          username: newUser.username,
+          role: newUser.role
+        }
+      );
+    } catch (error) {
+      console.error('Failed to publish user created event:', error);
+      // Don't fail the request if Kafka publish fails
+      // but this should be audited later on by developer and backfill missing data
+    }
+
     const token = generateToken(newUser);
     const { password: _, ...userWithoutPassword } = newUser;
 
@@ -179,5 +199,21 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`User Service running on port ${PORT}`);
   console.log('Reading data from file on each request');
+  
+  // Start Kafka consumer on startup
+  kafkaConsumer.connect().catch(error => {
+    console.error('Failed to start Kafka consumer:', error);
+  });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  await kafkaConsumer.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  await kafkaConsumer.disconnect();
+  process.exit(0);
 });
 

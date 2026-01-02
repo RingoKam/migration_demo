@@ -14,7 +14,10 @@ data class UserEvent(
     val payload: Map<String, Any>,
     
     @JsonProperty("timestamp")
-    val timestamp: String = Instant.now().toString()
+    val timestamp: String = Instant.now().toString(),
+    
+    @JsonProperty("source")
+    val source: String
 )
 
 enum class UserEventType {

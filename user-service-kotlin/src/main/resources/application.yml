@@ -15,11 +15,13 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9093}
     consumer:
-      group-id: user-service-group
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:user-service-group}
+      client-id: ${KAFKA_CLIENT_ID:user-service-kotlin-consumer}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
+      client-id: ${KAFKA_PRODUCER_CLIENT_ID:user-service-kotlin-producer}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 

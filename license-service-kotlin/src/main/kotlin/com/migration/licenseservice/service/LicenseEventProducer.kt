@@ -3,16 +3,18 @@ package com.migration.licenseservice.service
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.migration.licenseservice.model.LicenseEvent
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 
 @Service
 class LicenseEventProducer(
     private val kafkaTemplate: KafkaTemplate<String, String>,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    @Value("\${KAFKA_LICENSE_EVENTS_TOPIC:license-events}")
+    private val topic: String
 ) {
     private val logger = LoggerFactory.getLogger(LicenseEventProducer::class.java)
-    private val topic = "license-events"
 
     fun publishEvent(event: LicenseEvent) {
         try {

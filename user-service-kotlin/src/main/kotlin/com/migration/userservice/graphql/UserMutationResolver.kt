@@ -7,6 +7,7 @@ import com.migration.userservice.model.UserRole
 import com.migration.userservice.repository.UserRepository
 import com.migration.userservice.service.JwtService
 import com.migration.userservice.service.UserEventProducer
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.graphql.data.method.annotation.Argument
 import org.springframework.graphql.data.method.annotation.MutationMapping
 import org.springframework.stereotype.Controller
@@ -16,7 +17,9 @@ import java.util.*
 class UserMutationResolver(
     private val userRepository: UserRepository,
     private val eventProducer: UserEventProducer,
-    private val jwtService: JwtService
+    private val jwtService: JwtService,
+    @Value("\${KAFKA_EVENT_SOURCE:user-service-kotlin}")
+    private val eventSource: String
 ) {
     @MutationMapping
     fun login(@Argument credentials: LoginInput): AuthPayload {
@@ -61,7 +64,8 @@ class UserMutationResolver(
         val event = UserEvent(
             eventType = UserEventType.USER_CREATED,
             userId = userId,
-            payload = userData
+            payload = userData,
+            source = eventSource
         )
         eventProducer.publishEvent(event)
 
@@ -93,7 +97,8 @@ class UserMutationResolver(
         val event = UserEvent(
             eventType = UserEventType.USER_UPDATED,
             userId = id,
-            payload = updates
+            payload = updates,
+            source = eventSource
         )
         eventProducer.publishEvent(event)
 

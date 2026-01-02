@@ -5,6 +5,7 @@ import com.migration.licenseservice.model.LicenseEventType
 import com.migration.licenseservice.model.LicenseStatus
 import com.migration.licenseservice.repository.LicenseRepository
 import com.migration.licenseservice.service.LicenseEventProducer
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.graphql.data.method.annotation.Argument
 import org.springframework.graphql.data.method.annotation.MutationMapping
 import org.springframework.stereotype.Controller
@@ -12,7 +13,9 @@ import org.springframework.stereotype.Controller
 @Controller
 class LicenseMutationResolver(
     private val licenseRepository: LicenseRepository,
-    private val eventProducer: LicenseEventProducer
+    private val eventProducer: LicenseEventProducer,
+    @Value("\${KAFKA_EVENT_SOURCE:license-service-kotlin}")
+    private val eventSource: String
 ) {
     @MutationMapping
     fun updateLicenseStatus(
@@ -35,7 +38,8 @@ class LicenseMutationResolver(
         val event = LicenseEvent(
             eventType = LicenseEventType.LICENSE_UPDATED,
             userId = userId,
-            payload = updates
+            payload = updates,
+            source = eventSource
         )
         eventProducer.publishEvent(event)
 
