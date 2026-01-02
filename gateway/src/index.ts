@@ -1,15 +1,25 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
+import { makeExecutableSchema } from '@graphql-tools/schema';
 import { typeDefs } from './schema.js';
 import { resolvers } from './resolvers.js';
 import { createAuthContext, AuthContext } from './auth.js';
+import { authDirectiveTransformer } from './directives.js';
 
 const PORT = parseInt(process.env.PORT || '8080');
 
 async function startServer() {
-  const server = new ApolloServer({
+  // Create schema with directive transformer
+  let schema = makeExecutableSchema({
     typeDefs,
     resolvers,
+  });
+
+  // Apply the auth directive transformer
+  schema = authDirectiveTransformer(schema);
+
+  const server = new ApolloServer({
+    schema,
   });
 
   const { url } = await startStandaloneServer(server, {

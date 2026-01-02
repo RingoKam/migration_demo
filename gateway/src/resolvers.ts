@@ -46,11 +46,8 @@ export const resolvers = {
     },
     
     me: async (_: any, __: any, context: Context) => {
-      if (!context.auth.isAuthenticated || !context.auth.userId) {
-        throw new Error('Authentication required');
-      }
-      
-      return fetchUserWithLicense(context.auth.userId);
+      // Auth check is now handled by @auth directive
+      return fetchUserWithLicense(context.auth.userId!);
     }
   },
 
