@@ -6,7 +6,7 @@ interface FeatureToggleState {
 
 // Initialize from environment variables
 const initialState: FeatureToggleState = {
-  userService: process.env.USE_NEW_USER_SERVICE === 'true'
+  userService: process.env.USE_NEW_USER_SERVICE === 'true',
   licenseService: process.env.USE_NEW_LICENSE_SERVICE === 'true'
 };
 
