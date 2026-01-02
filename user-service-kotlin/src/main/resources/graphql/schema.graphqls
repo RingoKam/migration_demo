@@ -6,12 +6,12 @@ type Query {
 type Mutation {
     login(credentials: LoginInput!): AuthPayload!
     register(input: RegisterInput!): MutationResult!
-    updateUser(id: ID!, input: UpdateUserInput!): MutationResult!
 }
 
 type MutationResult {
     success: Boolean!
     message: String
+    userId: ID
 }
 
 type User {
@@ -37,12 +37,6 @@ input RegisterInput {
     password: String!
     username: String!
     role: UserRole = STUDENT
-}
-
-input UpdateUserInput {
-    email: String
-    username: String
-    role: UserRole
 }
 
 type AuthPayload {

@@ -40,6 +40,13 @@ export const typeDefs = `#graphql
     password: String!
     username: String!
     role: UserRole = STUDENT
+    license: LicenseInput
+  }
+
+  input LicenseInput {
+    isValidSeat: Boolean
+    seatType: String
+    expirationDate: String
   }
 
   type AuthPayload {
@@ -50,6 +57,7 @@ export const typeDefs = `#graphql
   type MutationResult {
     success: Boolean!
     message: String
+    userId: ID
   }
 
   type LicenseStatus {

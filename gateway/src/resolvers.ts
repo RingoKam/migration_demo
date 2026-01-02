@@ -221,7 +221,7 @@ export const resolvers = {
       }
     },
     
-    register: async (_: any, { input }: { input: { email: string; password: string; username: string; role?: string } }) => {
+    register: async (_: any, { input }: { input: { email: string; password: string; username: string; role?: string; license?: { isValidSeat?: boolean; seatType?: string; expirationDate?: string } } }) => {
       try {
         if (featureToggle.getUserService()) {
           // Use GraphQL service (Kotlin) with Kafka - event-driven
@@ -230,6 +230,7 @@ export const resolvers = {
               register(input: $input) {
                 success
                 message
+                userId
               }
             }
           `;
@@ -252,7 +253,53 @@ export const resolvers = {
             throw new Error(response.data.errors[0].message || 'Registration failed');
           }
           
-          return response.data.data.register;
+          const result = response.data.data.register;
+          
+          // Create license if provided (handle separately from user registration)
+          if (input.license && result.userId) {
+            try {
+              if (featureToggle.getLicenseService()) {
+                // Use GraphQL license service
+                const licenseMutation = `
+                  mutation UpdateLicenseStatus($userId: ID!, $input: UpdateLicenseInput!) {
+                    updateLicenseStatus(userId: $userId, input: $input) {
+                      success
+                      message
+                    }
+                  }
+                `;
+                
+                const licenseVariables = {
+                  userId: result.userId,
+                  input: {
+                    isValidSeat: input.license.isValidSeat,
+                    seatType: input.license.seatType,
+                    expirationDate: input.license.expirationDate
+                  }
+                };
+                
+                await axios.post(`${LICENSE_SERVICE_KOTLIN_URL}/graphql`, {
+                  query: licenseMutation,
+                  variables: licenseVariables
+                });
+              } else {
+                // Use REST license service
+                await axios.put(
+                  `${LICENSE_SERVICE_URL}/users/${result.userId}/authorizations`,
+                  {
+                    isValidSeat: input.license.isValidSeat,
+                    seatType: input.license.seatType,
+                    expirationDate: input.license.expirationDate
+                  }
+                );
+              }
+            } catch (licenseError) {
+              // TODO: handle license creation, at least log the error
+              console.error('Failed to create license during registration:', licenseError);
+            }
+          }
+          
+          return result;
         } else {
           // Use REST service - returns AuthPayload for backward compatibility
           const response = await axios.post<{ user: User; token: string }>(
@@ -260,12 +307,57 @@ export const resolvers = {
             input
           );
           
-          const { user, token } = response.data;
+          const { user } = response.data;
+
+          // Create license if provided (REST service returns user immediately)
+          if (input.license && user.id) {
+            try {
+              if (featureToggle.getLicenseService()) {
+                // Use GraphQL license service
+                const licenseMutation = `
+                  mutation UpdateLicenseStatus($userId: ID!, $input: UpdateLicenseInput!) {
+                    updateLicenseStatus(userId: $userId, input: $input) {
+                      success
+                      message
+                    }
+                  }
+                `;
+                
+                const licenseVariables = {
+                  userId: user.id,
+                  input: {
+                    isValidSeat: input.license.isValidSeat,
+                    seatType: input.license.seatType,
+                    expirationDate: input.license.expirationDate
+                  }
+                };
+                
+                await axios.post(`${LICENSE_SERVICE_KOTLIN_URL}/graphql`, {
+                  query: licenseMutation,
+                  variables: licenseVariables
+                });
+              } else {
+                // Use REST license service
+                await axios.put(
+                  `${LICENSE_SERVICE_URL}/users/${user.id}/authorizations`,
+                  {
+                    isValidSeat: input.license.isValidSeat,
+                    seatType: input.license.seatType,
+                    expirationDate: input.license.expirationDate
+                  }
+                );
+              }
+            } catch (licenseError) {
+              // TODO: handle license creation, at least log the error
+              console.error('Failed to create license during registration:', licenseError);
+            }
+          }
 
           // Convert REST response to MutationResult for consistency
           return {
             success: true,
-            message: 'User registered successfully. Please login to get your token.'
+            message: 'User registered successfully. Please login to get your token.',
+            userId: user.id
           };
         }
       } catch (error: any) {

@@ -27,12 +27,11 @@ class UserMutationResolver(
         val user = userRepository.findByEmail(credentials.email)
             ?: throw RuntimeException("Invalid credentials")
 
-        // Verify password (plain text comparison for demo - in production, use hashed passwords)
+        // TODO: use hashed passwords
         if (user.password != credentials.password) {
             throw RuntimeException("Invalid credentials")
         }
 
-        // Generate JWT token
         val token = jwtService.generateToken(user)
 
         return AuthPayload(
@@ -71,42 +70,11 @@ class UserMutationResolver(
 
         return MutationResult(
             success = true,
-            message = "User registration initiated. Please login to get your token."
+            message = "User registration initiated. Please login to get your token.",
+            userId = userId
         )
     }
 
-    @MutationMapping
-    fun updateUser(@Argument id: String, @Argument input: UpdateUserInput): MutationResult {
-        // Verify user exists
-        val existingUser = userRepository.findById(id)
-            ?: throw RuntimeException("User with id $id not found")
-
-        val updates = mutableMapOf<String, Any>()
-        input.email?.let { updates["email"] = it }
-        input.username?.let { updates["username"] = it }
-        input.role?.let { updates["role"] = it.name }
-
-        if (updates.isEmpty()) {
-            return MutationResult(
-                success = false,
-                message = "No updates provided"
-            )
-        }
-
-        // Publish event to Kafka - consumer will handle persistence
-        val event = UserEvent(
-            eventType = UserEventType.USER_UPDATED,
-            userId = id,
-            payload = updates,
-            source = eventSource
-        )
-        eventProducer.publishEvent(event)
-
-        return MutationResult(
-            success = true,
-            message = "User update initiated"
-        )
-    }
 }
 
 // Input types
@@ -122,12 +90,6 @@ data class RegisterInput(
     val role: UserRole? = null
 )
 
-data class UpdateUserInput(
-    val email: String? = null,
-    val username: String? = null,
-    val role: UserRole? = null
-)
-
 data class AuthPayload(
     val token: String,
     val user: User
@@ -135,6 +97,7 @@ data class AuthPayload(
 
 data class MutationResult(
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
+    val userId: String? = null
 )
 
