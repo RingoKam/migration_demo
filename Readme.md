@@ -73,6 +73,29 @@ LicenseStatus
 
 ## Development
 
+### Techstack 
+Wben evaluating techstack, I think there are couple important factor:
+1. Team familiarity with the technology
+How comfortable and experienced the team is with the chosen language and tooling.
+2. Ecosystem maturity
+If a particular approach is popular within the ecosystem, we are more likely to find documentation, community support, and existing resources. This also reduces the likelihood of encountering edge cases that are not well covered by the framework or libraries.
+3. Architectural cohesion
+We should consider the language choices used in existing services. For example, if most microservices are written in Java/Kotlin, it usually does not make sense to introduce Python or Node.js. This ties back to point #1: using similar technologies across the stack enables developers to move more easily between services and minimizes friction.
+
+Base on the above few points: 
+I have chosen:
+#### **Apollo GraphQL** 
+- I have experience with ApolloGraphQL before 
+- It is use as a gateway with few implementation logic
+- Creator of the federated graphQL standard is Apollo themselve
+
+#### ** SPRING + Kotlin + GraphQL **
+- Other application maintained by the team is written with Kotlin
+- Reduce boilplate
+- 100% Interoperability with Java
+- Async/await-style support via coroutines
+- Spring is probably one of the most popular framework out there, with tons of support including graphQL integration.
+
 ### Getting Started
 
 This project uses Docker Compose to orchestrate all services. To start the entire stack:
