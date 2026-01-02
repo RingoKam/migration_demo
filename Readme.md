@@ -22,6 +22,11 @@ Expanding on the architecture diagram supplied, we will have something like belo
 * Flag should be off during this time in PRODUCTION
 * Actively monitor and validate Data consistency
 
+During this phrase, we will be hands on with both legacy and new microservices and retrofit them to perform **dual write**. 
+1. This is done by emitting a message when write operation occurs in either side of the microservice
+2. Both side will be listening for the write event and perform a write to their respective db
+> With caveat to the legacy microservice, as it already writes to the db in a sync operation, we will not be changing that. Instead we will just omit the write if the source of the message is from itself.    
+
 Once QA confirm microservice in old and new return the same dataset, we can move on to phrase 2
 
 ### Phrase 2: Gradual Cutover 
