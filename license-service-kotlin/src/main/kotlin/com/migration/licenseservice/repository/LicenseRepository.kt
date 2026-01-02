@@ -39,6 +39,33 @@ class LicenseRepository {
         }
     }
 
+    fun saveOrUpdate(userId: String, updates: Map<String, Any>): LicenseStatus {
+        val licenses = readLicenses().toMutableMap()
+        val existing = licenses[userId]?.toMutableMap() ?: mutableMapOf()
+        
+        updates.forEach { (key, value) ->
+            when (key) {
+                "isValidSeat" -> existing["isValidSeat"] = value as Boolean
+                "seatType" -> existing["seatType"] = value
+                "expirationDate" -> existing["expirationDate"] = value
+            }
+        }
+        
+        licenses[userId] = existing
+        writeLicenses(licenses)
+        
+        return findByUserId(userId)
+    }
+
+    private fun writeLicenses(licenses: Map<String, Map<String, Any>>) {
+        try {
+            mapper.writeValue(licensesFile.toFile(), licenses)
+        } catch (e: Exception) {
+            println("Error writing licenses file: ${e.message}")
+            throw RuntimeException("Failed to save license data", e)
+        }
+    }
+
     private fun readLicenses(): Map<String, Map<String, Any>> {
         return try {
             if (!licensesFile.toFile().exists()) {

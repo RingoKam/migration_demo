@@ -45,6 +45,47 @@ class UserRepository {
         }
     }
 
+    fun save(user: User): User {
+        val users = readUsers().toMutableMap()
+        users[user.id] = mapOf(
+            "id" to user.id,
+            "email" to user.email,
+            "username" to user.username,
+            "role" to user.role.name,
+            "password" to (user.password ?: "")
+        )
+        writeUsers(users)
+        return user
+    }
+
+    fun update(id: String, updates: Map<String, Any>): User? {
+        val users = readUsers().toMutableMap()
+        val existing = users[id]?.toMutableMap() ?: return null
+        
+        updates.forEach { (key, value) ->
+            when (key) {
+                "email" -> existing["email"] = value as String
+                "username" -> existing["username"] = value as String
+                "role" -> existing["role"] = (value as UserRole).name
+                "password" -> existing["password"] = value as String
+            }
+        }
+        
+        users[id] = existing
+        writeUsers(users)
+        
+        return findById(id)
+    }
+
+    private fun writeUsers(users: Map<String, Map<String, Any>>) {
+        try {
+            mapper.writeValue(usersFile.toFile(), users)
+        } catch (e: Exception) {
+            println("Error writing users file: ${e.message}")
+            throw RuntimeException("Failed to save user data", e)
+        }
+    }
+
     private fun readUsers(): Map<String, Map<String, Any>> {
         return try {
             if (!usersFile.toFile().exists()) {

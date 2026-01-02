@@ -47,13 +47,22 @@ async function fetchUser(userId: string): Promise<User> {
     });
     
     if (response.data.errors) {
-      throw new Error(response.data.errors[0].message || 'Failed to fetch user');
+      const errorMessage = response.data.errors[0]?.message || 'Failed to fetch user';
+      throw new Error(errorMessage);
     }
     
-    return response.data.data.getUser;
+    const user = response.data.data?.getUser;
+    if (!user) {
+      throw new Error(`User with id ${userId} not found`);
+    }
+    
+    return user;
   } else {
     // Use REST service
     const response = await axios.get<User>(`${USER_SERVICE_URL}/users/${userId}`);
+    if (!response.data) {
+      throw new Error('User not found');
+    }
     return response.data;
   }
 }
@@ -96,6 +105,10 @@ export const resolvers = {
   Query: {
     getUser: async (_: any, { id }: { id: string }, context: Context) => {
       const user = await fetchUser(id);
+      if (!user) {
+        return null;
+      }
+      
       return {
         ...user,
         role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
@@ -104,7 +117,17 @@ export const resolvers = {
     
     me: async (_: any, __: any, context: Context) => {
       // Auth check is now handled by @auth directive
-      const user = await fetchUser(context.auth.userId!);
+      if (!context.auth.userId) {
+        throw new Error('User not authenticated');
+      }
+      
+      const user = await fetchUser(context.auth.userId);
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      console.log('user', user);
+
       return {
         ...user,
         role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
@@ -127,63 +150,131 @@ export const resolvers = {
   Mutation: {
     login: async (_: any, { credentials }: { credentials: { email: string; password: string } }) => {
       try {
-        // if (featureToggle.getUserService()) {
-        //   // GraphQL services don't have login mutation yet, fallback to REST
-        //   // This will be implemented later with Kafka + DynamoDB
-        //   throw new Error('Login not yet supported in new GraphQL services. Please use REST services.');
-        // }
-        
-        // Call user-service login endpoint (REST)
-        const response = await axios.post<{ user: User; token: string }>(
-          `${USER_SERVICE_URL}/auth/login`,
-          credentials
-        );
-        
-        const { user, token } = response.data;
-
-        return {
-          token,
-          user: {
-            ...user,
-            role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
-            // licenseStatus will be resolved by the field resolver if requested
+        if (featureToggle.getUserService()) {
+          // Use GraphQL service (Kotlin)
+          const mutation = `
+            mutation Login($credentials: LoginInput!) {
+              login(credentials: $credentials) {
+                token
+                user {
+                  id
+                  email
+                  username
+                  role
+                }
+              }
+            }
+          `;
+          
+          const variables = {
+            credentials: {
+              email: credentials.email,
+              password: credentials.password
+            }
+          };
+          
+          const response = await axios.post(`${USER_SERVICE_KOTLIN_URL}/graphql`, {
+            query: mutation,
+            variables
+          });
+          
+          if (response.data.errors) {
+            throw new Error(response.data.errors[0].message || 'Login failed');
           }
-        };
+          
+          const { user, token } = response.data.data.login;
+          
+          return {
+            token,
+            user: {
+              ...user,
+              role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
+            }
+          };
+        } else {
+          // Use REST service
+          const response = await axios.post<{ user: User; token: string }>(
+            `${USER_SERVICE_URL}/auth/login`,
+            credentials
+          );
+          
+          const { user, token } = response.data;
+
+          return {
+            token,
+            user: {
+              ...user,
+              role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
+              // licenseStatus will be resolved by the field resolver if requested
+            }
+          };
+        }
       } catch (error: any) {
         if (axios.isAxiosError(error) && error.response) {
-          throw new Error(error.response.data?.error || 'Login failed');
+          const errorData = error.response.data;
+          if (errorData?.errors) {
+            throw new Error(errorData.errors[0]?.message || 'Login failed');
+          }
+          throw new Error(errorData?.error || 'Login failed');
         }
         throw new Error(error.message || 'Login failed');
       }
     },
     
-    register: async (_: any, { input }: { input: { email: string; password: string; username: string; role: string } }) => {
+    register: async (_: any, { input }: { input: { email: string; password: string; username: string; role?: string } }) => {
       try {
-        // if (featureToggle.getUserService()) {
-          // GraphQL services don't have register mutation yet, fallback to REST
-          // This will be implemented later with Kafka + DynamoDB
-          // throw new Error('Register not yet supported in new GraphQL services. Please use REST services.');
-       // }
-        
-        // Call user-service register endpoint (REST)
-        const response = await axios.post<{ user: User; token: string }>(
-          `${USER_SERVICE_URL}/auth/register`,
-          input
-        );
-        
-        const { user, token } = response.data;
-
-        return {
-          token,
-          user: {
-            ...user,
-            role: user.role as 'STUDENT' | 'TEACHER' | 'ADMIN',
-            // licenseStatus will be resolved by the field resolver if requested
+        if (featureToggle.getUserService()) {
+          // Use GraphQL service (Kotlin) with Kafka - event-driven
+          const mutation = `
+            mutation Register($input: RegisterInput!) {
+              register(input: $input) {
+                success
+                message
+              }
+            }
+          `;
+          
+          const variables = {
+            input: {
+              email: input.email,
+              password: input.password,
+              username: input.username,
+              role: input.role || 'STUDENT'
+            }
+          };
+          
+          const response = await axios.post(`${USER_SERVICE_KOTLIN_URL}/graphql`, {
+            query: mutation,
+            variables
+          });
+          
+          if (response.data.errors) {
+            throw new Error(response.data.errors[0].message || 'Registration failed');
           }
-        };
+          
+          return response.data.data.register;
+        } else {
+          // Use REST service - returns AuthPayload for backward compatibility
+          const response = await axios.post<{ user: User; token: string }>(
+            `${USER_SERVICE_URL}/auth/register`,
+            input
+          );
+          
+          const { user, token } = response.data;
+
+          // Convert REST response to MutationResult for consistency
+          return {
+            success: true,
+            message: 'User registered successfully. Please login to get your token.'
+          };
+        }
       } catch (error: any) {
         if (axios.isAxiosError(error) && error.response) {
-          throw new Error(error.response.data?.error || 'Registration failed');
+          const errorData = error.response.data;
+          if (errorData?.errors) {
+            throw new Error(errorData.errors[0]?.message || 'Registration failed');
+          }
+          throw new Error(errorData?.error || 'Registration failed');
         }
         throw new Error(error.message || 'Registration failed');
       }

@@ -26,7 +26,7 @@ export const typeDefs = `#graphql
 
   type Mutation {
     login(credentials: LoginInput!): AuthPayload!
-    register(input: RegisterInput!): AuthPayload!
+    register(input: RegisterInput!): MutationResult!
     updateFeatureToggles(input: FeatureToggleInput!): FeatureToggleState!
   }
 
@@ -45,6 +45,11 @@ export const typeDefs = `#graphql
   type AuthPayload {
     token: String!
     user: User!
+  }
+
+  type MutationResult {
+    success: Boolean!
+    message: String
   }
 
   type LicenseStatus {

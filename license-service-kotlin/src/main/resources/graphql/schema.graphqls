@@ -2,9 +2,24 @@ type Query {
     getLicenseStatus(userId: ID!): LicenseStatus!
 }
 
+type Mutation {
+    updateLicenseStatus(userId: ID!, input: UpdateLicenseInput!): MutationResult!
+}
+
+type MutationResult {
+    success: Boolean!
+    message: String
+}
+
 type LicenseStatus {
     id: ID!
     isValidSeat: Boolean!
+    seatType: String
+    expirationDate: String
+}
+
+input UpdateLicenseInput {
+    isValidSeat: Boolean
     seatType: String
     expirationDate: String
 }
