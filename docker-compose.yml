@@ -34,6 +34,38 @@ services:
     networks:
       - migration-network
 
+  user-service-kotlin:
+    build:
+      context: ./user-service-kotlin
+      dockerfile: Dockerfile
+    container_name: user-service-kotlin
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  license-service-kotlin:
+    build:
+      context: ./license-service-kotlin
+      dockerfile: Dockerfile
+    container_name: license-service-kotlin
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
   gateway:
     build:
       context: ./gateway
@@ -44,11 +76,20 @@ services:
     environment:
       - USER_SERVICE_URL=http://user-service:3001
       - LICENSE_SERVICE_URL=http://license-service:8000
+      - USER_SERVICE_KOTLIN_URL=http://user-service-kotlin:3002
+      - LICENSE_SERVICE_KOTLIN_URL=http://license-service-kotlin:8001
+      # Feature toggles (can be overridden via GraphQL mutation)
+      - USE_NEW_USER_SERVICE=true enables only user service
+      - USE_NEW_LICENSE_SERVICE=true enables only license service
       - PORT=8080
     depends_on:
       user-service:
         condition: service_healthy
       license-service:
+        condition: service_healthy
+      user-service-kotlin:
+        condition: service_healthy
+      license-service-kotlin:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]

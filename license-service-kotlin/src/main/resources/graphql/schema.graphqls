@@ -1,0 +1,11 @@
+type Query {
+    getLicenseStatus(userId: ID!): LicenseStatus!
+}
+
+type LicenseStatus {
+    id: ID!
+    isValidSeat: Boolean!
+    seatType: String
+    expirationDate: String
+}
+

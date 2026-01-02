@@ -21,11 +21,13 @@ export const typeDefs = `#graphql
   type Query {
     getUser(id: ID!): User @auth
     me: User @auth
+    featureToggles: FeatureToggleState!
   }
 
   type Mutation {
     login(credentials: LoginInput!): AuthPayload!
     register(input: RegisterInput!): AuthPayload!
+    updateFeatureToggles(input: FeatureToggleInput!): FeatureToggleState!
   }
 
   input LoginInput {
@@ -50,6 +52,16 @@ export const typeDefs = `#graphql
     isValidSeat: Boolean!
     seatType: String
     expirationDate: String
+  }
+
+  type FeatureToggleState {
+    userService: Boolean!
+    licenseService: Boolean!
+  }
+
+  input FeatureToggleInput {
+    userService: Boolean
+    licenseService: Boolean
   }
 `;
 

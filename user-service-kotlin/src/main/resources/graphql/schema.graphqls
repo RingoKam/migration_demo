@@ -1,0 +1,17 @@
+type Query {
+    getUser(id: ID!): User
+}
+
+type User {
+    id: ID!
+    email: String!
+    username: String!
+    role: UserRole!
+}
+
+enum UserRole {
+    STUDENT
+    TEACHER
+    ADMIN
+}
+

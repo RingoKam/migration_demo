@@ -5,6 +5,7 @@ import { typeDefs } from './schema.js';
 import { resolvers } from './resolvers.js';
 import { createAuthContext, AuthContext } from './auth.js';
 import { authDirectiveTransformer } from './directives.js';
+import { featureToggle } from './featureToggle.js';
 
 const PORT = parseInt(process.env.PORT || '8080');
 
@@ -31,12 +32,16 @@ async function startServer() {
     },
   });
 
+  const toggleState = featureToggle.getState();
   console.log(`🚀 GraphQL Gateway ready at ${url}`);
   console.log(`📊 GraphiQL available at ${url}`);
+  console.log(`🔧 Feature Toggles:`);
+  console.log(`   - User Service: ${toggleState.userService ? 'NEW (Kotlin GraphQL)' : 'OLD (REST)'}`);
+  console.log(`   - License Service: ${toggleState.licenseService ? 'NEW (Kotlin GraphQL)' : 'OLD (REST)'}`);
+  console.log(`💡 Query 'featureToggles' to see current state or use 'updateFeatureToggles' mutation to change`);
 }
 
 startServer().catch((error) => {
   console.error('Failed to start server:', error);
   process.exit(1);
 });
-
