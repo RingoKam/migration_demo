@@ -11,6 +11,14 @@ services:
       - PORT=3001
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_USER_EVENTS_TOPIC=${KAFKA_USER_EVENTS_TOPIC:-user-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-user-service-consumer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-user-service-legacy-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-user-service-legacy}
+    depends_on:
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
       interval: 30s
@@ -27,6 +35,15 @@ services:
     container_name: license-service
     ports:
       - "8000:8000"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_LICENSE_EVENTS_TOPIC=${KAFKA_LICENSE_EVENTS_TOPIC:-license-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-license-service-consumer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-license-service-legacy-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-license-service-legacy}
+    depends_on:
+      kafka:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -47,6 +64,11 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - KAFKA_USER_EVENTS_TOPIC=${KAFKA_USER_EVENTS_TOPIC:-user-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-user-service-kotlin-consumer}
+      - KAFKA_PRODUCER_CLIENT_ID=${KAFKA_PRODUCER_CLIENT_ID:-user-service-kotlin-producer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-user-service-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-user-service-kotlin}
     depends_on:
       kafka:
         condition: service_healthy
@@ -68,6 +90,11 @@ services:
       - "8001:8001"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_LICENSE_EVENTS_TOPIC=${KAFKA_LICENSE_EVENTS_TOPIC:-license-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-license-service-kotlin-consumer}
+      - KAFKA_PRODUCER_CLIENT_ID=${KAFKA_PRODUCER_CLIENT_ID:-license-service-kotlin-producer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-license-service-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-license-service-kotlin}
     depends_on:
       kafka:
         condition: service_healthy
