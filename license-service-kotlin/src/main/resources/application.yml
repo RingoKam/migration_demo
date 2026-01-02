@@ -1,0 +1,23 @@
+server:
+  port: 8001
+
+spring:
+  application:
+    name: license-service-kotlin
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9093}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:license-service-group}
+      client-id: ${KAFKA_CLIENT_ID:license-service-kotlin-consumer}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      client-id: ${KAFKA_PRODUCER_CLIENT_ID:license-service-kotlin-producer}
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+

@@ -1,0 +1,21 @@
+{
+  "1": {
+    "id": "1",
+    "isValidSeat": true,
+    "seatType": "Premium",
+    "expirationDate": "2024-12-31"
+  },
+  "2": {
+    "id": "2",
+    "isValidSeat": true,
+    "seatType": "Standard",
+    "expirationDate": "2024-06-30"
+  },
+  "3": {
+    "id": "3",
+    "isValidSeat": false,
+    "seatType": "Trial",
+    "expirationDate": "2023-12-31"
+  }
+}
+

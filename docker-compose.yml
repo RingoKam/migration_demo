@@ -1,0 +1,206 @@
+
+services:
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_USER_EVENTS_TOPIC=${KAFKA_USER_EVENTS_TOPIC:-user-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-user-service-consumer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-user-service-legacy-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-user-service-legacy}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  license-service:
+    build:
+      context: ./license-service
+      dockerfile: Dockerfile
+    container_name: license-service
+    ports:
+      - "8000:8000"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_LICENSE_EVENTS_TOPIC=${KAFKA_LICENSE_EVENTS_TOPIC:-license-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-license-service-consumer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-license-service-legacy-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-license-service-legacy}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  user-service-kotlin:
+    build:
+      context: ./user-service-kotlin
+      dockerfile: Dockerfile
+    container_name: user-service-kotlin
+    ports:
+      - "3002:3002"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - KAFKA_USER_EVENTS_TOPIC=${KAFKA_USER_EVENTS_TOPIC:-user-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-user-service-kotlin-consumer}
+      - KAFKA_PRODUCER_CLIENT_ID=${KAFKA_PRODUCER_CLIENT_ID:-user-service-kotlin-producer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-user-service-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-user-service-kotlin}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  license-service-kotlin:
+    build:
+      context: ./license-service-kotlin
+      dockerfile: Dockerfile
+    container_name: license-service-kotlin
+    ports:
+      - "8001:8001"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+      - KAFKA_LICENSE_EVENTS_TOPIC=${KAFKA_LICENSE_EVENTS_TOPIC:-license-events}
+      - KAFKA_CLIENT_ID=${KAFKA_CLIENT_ID:-license-service-kotlin-consumer}
+      - KAFKA_PRODUCER_CLIENT_ID=${KAFKA_PRODUCER_CLIENT_ID:-license-service-kotlin-producer}
+      - KAFKA_CONSUMER_GROUP_ID=${KAFKA_CONSUMER_GROUP_ID:-license-service-group}
+      - KAFKA_EVENT_SOURCE=${KAFKA_EVENT_SOURCE:-license-service-kotlin}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: graphql-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - USER_SERVICE_URL=http://user-service:3001
+      - LICENSE_SERVICE_URL=http://license-service:8000
+      - USER_SERVICE_KOTLIN_URL=http://user-service-kotlin:3002
+      - LICENSE_SERVICE_KOTLIN_URL=http://license-service-kotlin:8001
+      # Feature toggles (can be overridden via GraphQL mutation)
+      - USE_NEW_USER_SERVICE=true enables only user service
+      - USE_NEW_LICENSE_SERVICE=true enables only license service
+      - PORT=8080
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9093
+    depends_on:
+      user-service:
+        condition: service_healthy
+      license-service:
+        condition: service_healthy
+      user-service-kotlin:
+        condition: service_healthy
+      license-service-kotlin:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - migration-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - migration-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9093"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - migration-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - migration-network
+
+networks:
+  migration-network:
+    driver: bridge
+

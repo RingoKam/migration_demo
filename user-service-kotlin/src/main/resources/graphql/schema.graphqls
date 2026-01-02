@@ -1,0 +1,51 @@
+type Query {
+    getUser(id: ID!): User
+    verifyToken(token: String!): VerifyTokenResponse!
+}
+
+type Mutation {
+    login(credentials: LoginInput!): AuthPayload!
+    register(input: RegisterInput!): MutationResult!
+}
+
+type MutationResult {
+    success: Boolean!
+    message: String
+    userId: ID
+}
+
+type User {
+    id: ID!
+    email: String!
+    username: String!
+    role: UserRole!
+}
+
+enum UserRole {
+    STUDENT
+    TEACHER
+    ADMIN
+}
+
+input LoginInput {
+    email: String!
+    password: String!
+}
+
+input RegisterInput {
+    email: String!
+    password: String!
+    username: String!
+    role: UserRole = STUDENT
+}
+
+type AuthPayload {
+    token: String!
+    user: User!
+}
+
+type VerifyTokenResponse {
+    user: User!
+    isValid: Boolean!
+}
+
