@@ -2,6 +2,7 @@ import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { typeDefs } from './schema.js';
 import { resolvers } from './resolvers.js';
+import { createAuthContext, AuthContext } from './auth.js';
 
 const PORT = parseInt(process.env.PORT || '8080');
 
@@ -13,6 +14,11 @@ async function startServer() {
 
   const { url } = await startStandaloneServer(server, {
     listen: { port: PORT },
+    context: async ({ req }: { req: any }) => {
+      const authHeader = req.headers.authorization;
+      const authContext = await createAuthContext(authHeader);
+      return { auth: authContext };
+    },
   });
 
   console.log(`🚀 GraphQL Gateway ready at ${url}`);
